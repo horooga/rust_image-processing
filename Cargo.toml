@@ -1,0 +1,11 @@
+[package]
+name = "image-processing"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+image = "0.25.5"
+
+[[bin]]
+name = "image-processing"
+path = "main.rs"
