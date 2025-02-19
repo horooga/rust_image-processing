@@ -9,18 +9,18 @@ fn main() {
 
     let pal: Vec<[i32; 3]> = vec![
         [0, 0, 0],
-        [40, 30, 40],
         [75, 50, 75],
         [100, 66, 100],
-        [200, 132, 200],
+        [255, 180, 255],
+        [255, 255, 255],
     ];
     //let pal: Vec<[i32; 3]> = vec![[0, 0, 0], [255, 255, 255]];
     img = rec_to_quad(rimg);
     rimg = &mut img;
-    img = errprop_dithering(rimg, pal, 4);
+    img = twod_errprop_dithering(rimg, pal, 4);
     rimg = &mut img;
-    add(rimg, Rgb([40, 40, 40]));
     colorize(rimg, Rgb([255, 175, 255]));
+    edit_color(rimg, vec![Rgb([0, 0, 0]), Rgb([80, 30, 80])]);
     img = upscale(rimg, 2);
     let _ = save_img(img, "res.jpg");
 }

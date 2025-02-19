@@ -146,7 +146,7 @@ pub fn ord_bayer_dithering(
     nimg
 }
 
-pub fn errprop_dithering(
+pub fn twod_errprop_dithering(
     img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>,
     pal: Vec<[i32; 3]>,
     pixel_size: u32,
@@ -156,19 +156,22 @@ pub fn errprop_dithering(
     let mut ic = 0;
     let mut jc;
     let mut err: [i32; 3] = [0; 3];
+    let mut err_line: Vec<[i32; 3]> = vec![[0; 3]; (x / pixel_size) as usize];
     let mut curr_pixel: Rgb<u8>;
+    let mut upper_pixel: Rgb<u8>;
     let mut color: Rgb<u8>;
-    for i in (0..y).step_by(pixel_size as usize) {
+    for i in (1..y).step_by(pixel_size as usize) {
         err = [0; 3];
         jc = 0;
         for j in (0..x).step_by(pixel_size as usize) {
             curr_pixel = *img.get_pixel(j, i);
+            upper_pixel = *img.get_pixel(j, i - 1);
             color = closest_color(
                 pal.clone(),
                 [
-                    curr_pixel[0] as i32 + err[0],
-                    curr_pixel[1] as i32 + err[1],
-                    curr_pixel[2] as i32 + err[2],
+                    curr_pixel[0] as i32 + err[0] + err_line[0][0],
+                    curr_pixel[1] as i32 + err[1] + err_line[0][1],
+                    curr_pixel[2] as i32 + err[2] + err_line[0][2],
                 ],
             );
             nimg.put_pixel(jc, ic, color);
@@ -176,6 +179,11 @@ pub fn errprop_dithering(
                 curr_pixel[0] as i32 - color[0] as i32,
                 curr_pixel[1] as i32 - color[1] as i32,
                 curr_pixel[2] as i32 - color[2] as i32,
+            ]; 
+            err_line[jc as usize] = [
+                upper_pixel[0] as i32 - color[0] as i32,
+                upper_pixel[1] as i32 - color[1] as i32,
+                upper_pixel[2] as i32 - color[2] as i32,
             ];
             jc += 1;
         }
@@ -229,6 +237,19 @@ pub fn rec_to_quad(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>) -> ImageBuffer<Rgb<u
     nimg
 }
 
+pub fn edit_color(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, colors: Vec<Rgb<u8>>) {
+    let (x, y) = img.dimensions();
+    for i in 0..y {
+        for j in 0..x {
+            for k in (0..colors.len()).step_by(2) {
+                if colors[k] == *img.get_pixel(j, i) {
+                    img.put_pixel(j, i, colors[k+1]);
+                }
+            }
+        }
+    }
+}
+
 pub fn upscale(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, k: u32) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let (x, y) = img.dimensions();
     let mut nimg: ImageBuffer<Rgb<u8>, Vec<u8>> = RgbImage::new(x * k, y * k);
@@ -243,7 +264,7 @@ pub fn upscale(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, k: u32) -> ImageBuffer<R
 pub fn pinkize(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>) {
     let (x, y) = img.dimensions();
     let mut output_img: ImageBuffer<Rgb<u8>, Vec<u8>> = RgbImage::new(x, y);
-    for i in 0..y {
+    for i in 0..y { 
         for j in 0..x {
             let pixel: Rgb<u8> = *img.get_pixel(j, i);
             let c_max: u8 = cmp::max(pixel[2], cmp::max(pixel[0], pixel[1]));
