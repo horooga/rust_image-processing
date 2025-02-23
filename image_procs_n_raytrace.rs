@@ -147,9 +147,11 @@ pub fn ord_bayer_dithering(
 }
 
 pub fn twod_errprop_dithering(
-    img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>,
+    img: ImageBuffer<Rgb<u8>, Vec<u8>>,
     pal: Vec<[i32; 3]>,
     pixel_size: u32,
+    d: f32,
+    m: f32,
 ) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let (x, y) = img.dimensions();
     let mut nimg: ImageBuffer<Rgb<u8>, Vec<u8>> = RgbImage::new(x / pixel_size, y / pixel_size);
@@ -169,9 +171,9 @@ pub fn twod_errprop_dithering(
             color = closest_color(
                 pal.clone(),
                 [
-                    curr_pixel[0] as i32 + err[0] + err_line[0][0],
-                    curr_pixel[1] as i32 + err[1] + err_line[0][1],
-                    curr_pixel[2] as i32 + err[2] + err_line[0][2],
+                    (curr_pixel[0] as f32 / d) as i32 + ((err[0] + err_line[0][0]) as f32 * m) as i32,
+                    (curr_pixel[1] as f32 / d) as i32 + ((err[1] + err_line[0][1]) as f32 * m) as i32,
+                    (curr_pixel[2] as f32 / d) as i32 + ((err[2] + err_line[0][2]) as f32 * m) as i32,
                 ],
             );
             nimg.put_pixel(jc, ic, color);
@@ -276,11 +278,10 @@ pub fn pinkize(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>) {
 
 pub fn bright(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, c: f32) {
     let (x, y) = img.dimensions();
-    let mut output_img: ImageBuffer<Rgb<u8>, Vec<u8>> = RgbImage::new(x, y);
     for i in 0..y {
         for j in 0..x {
             let pixel: Rgb<u8> = *img.get_pixel(j, i);
-            output_img.put_pixel(
+            img.put_pixel(
                 j,
                 i,
                 Rgb([
