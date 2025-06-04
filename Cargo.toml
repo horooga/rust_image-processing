@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+druid = "0.8.3"
+druid-shell = "0.8.3"
 image = "0.25.5"
 
 [[bin]]
 name = "rust_image-processing"
-path = "main.rs"

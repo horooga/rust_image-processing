@@ -9,15 +9,15 @@ pub struct Intersection {
 }
 
 pub fn area(x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32) -> f32 {
-    return ((x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2)) / 2.0).abs();
+    ((x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2)) / 2.0).abs()
 }
 
 impl Intersection {
     pub fn new(t: f32, n: Xyz, hit: Xyz, hit_obj: Object) -> Self {
-        return Self { t, n, hit, hit_obj };
+        Self { t, n, hit, hit_obj }
     }
     pub fn null() -> Self {
-        return Self::new(-1.0, Xyz::null(), Xyz::null(), Object::null());
+        Self::new(-1.0, Xyz::null(), Xyz::null(), Object::null())
     }
 }
 
@@ -46,7 +46,7 @@ impl Object {
         rfty: f32,
         light: bool,
     ) -> Self {
-        return Self {
+        Self {
             obj_type,
             pos,
             col,
@@ -56,10 +56,10 @@ impl Object {
             d,
             rfty,
             light,
-        };
+        }
     }
     pub fn null() -> Self {
-        return Self::new(
+        Self::new(
             -1,
             Xyz::null(),
             Rgb([0, 0, 0]),
@@ -69,10 +69,10 @@ impl Object {
             Xyz::null(),
             0.0,
             false,
-        );
+        )
     }
     pub fn new_plane(pos: Xyz, col: Rgb<u8>, a: f32, rfty: f32, light: bool) -> Self {
-        return Self::new(
+        Self::new(
             0,
             pos,
             col,
@@ -82,10 +82,10 @@ impl Object {
             Xyz::null(),
             rfty,
             light,
-        );
+        )
     }
     pub fn new_sphere(pos: Xyz, col: Rgb<u8>, a: f32, rfty: f32, light: bool) -> Self {
-        return Self::new(
+        Self::new(
             1,
             pos,
             col,
@@ -95,7 +95,7 @@ impl Object {
             Xyz::null(),
             rfty,
             light,
-        );
+        )
     }
     pub fn new_triangle(
         pos: Xyz,
@@ -106,7 +106,7 @@ impl Object {
         rfty: f32,
         light: bool,
     ) -> Self {
-        return Self::new(2, pos, col, 0.0, b, c, d, rfty, light);
+        Self::new(2, pos, col, 0.0, b, c, d, rfty, light)
     }
     pub fn check(self: Self, ro: Xyz, rd: Xyz) -> Intersection {
         match self.obj_type {
@@ -119,9 +119,9 @@ impl Object {
                     -1.0
                 };
                 if t != -1.0 && t > 0.0 {
-                    return Intersection::new(t, n, Xyz::xyz_add(ro, Xyz::mul(rd, t)), self);
+                    Intersection::new(t, n, Xyz::xyz_add(ro, Xyz::mul(rd, t)), self)
                 } else {
-                    return Intersection::null();
+                    Intersection::null()
                 }
             }
             1 => {
@@ -139,9 +139,9 @@ impl Object {
                     }
                     let n: Xyz = ro.xyz_add(rd.mul(x)).norm();
                     let hit: Xyz = ro.xyz_add(rd.mul(x));
-                    return Intersection::new(x, n, hit, self);
+                    Intersection::new(x, n, hit, self)
                 } else {
-                    return Intersection::null();
+                    Intersection::null()
                 }
             }
             2 => {
@@ -158,7 +158,7 @@ impl Object {
                 let inv_det: f32 = 1.0 / det;
                 let tvec: Xyz = ro.xyz_sub(v0);
                 let u: f32 = inv_det * tvec.dot(pvec);
-                if u < 0.0 || u > 1.0 {
+                if !(0.0..=1.0).contains(&u) {
                     return Intersection::null();
                 }
                 let qvec: Xyz = tvec.cross(e1);
@@ -168,24 +168,22 @@ impl Object {
                 }
                 let t: f32 = inv_det * e2.dot(qvec);
                 if t > f32::EPSILON {
-                    return Intersection::new(t, self.pos, ro.xyz_add(rd.mul(t)), self);
+                    Intersection::new(t, self.pos, ro.xyz_add(rd.mul(t)), self)
                 } else {
-                    return Intersection::null();
+                    Intersection::null()
                 }
             }
-            _ => {
-                return Intersection::null();
-            }
-        };
+            _ => Intersection::null(),
+        }
     }
 }
 
 impl PartialEq for Object {
     fn eq(self: &Self, other: &Self) -> bool {
-        return self.pos == other.pos && self.obj_type != other.obj_type;
+        self.pos == other.pos && self.obj_type != other.obj_type
     }
     fn ne(self: &Self, other: &Self) -> bool {
-        return self.pos != other.pos && self.obj_type != other.obj_type;
+        self.pos != other.pos && self.obj_type != other.obj_type
     }
 }
 
@@ -196,84 +194,84 @@ pub struct Xyz {
 
 impl Xyz {
     pub fn new(val: [f32; 3]) -> Self {
-        return Self { val };
+        Self { val }
     }
     pub fn null() -> Self {
-        return Self::new([0.0, 0.0, 0.0]);
+        Self::new([0.0, 0.0, 0.0])
     }
     pub fn to_xyz(arr: [f32; 3]) -> Xyz {
-        return Xyz::new([arr[0], arr[1], arr[2]]);
+        Xyz::new([arr[0], arr[1], arr[2]])
     }
     pub fn length(self: Self) -> f32 {
-        return (self.val[0].powi(2) + self.val[1].powi(2) + self.val[2].powi(2)).sqrt();
+        (self.val[0].powi(2) + self.val[1].powi(2) + self.val[2].powi(2)).sqrt()
     }
     pub fn norm(self: Self) -> Self {
         let l: f32 = self.length();
         if l == 0.0 {
-            return Self::new([0.0, 0.0, 0.0]);
+            Self::new([0.0, 0.0, 0.0])
         } else {
-            return self.div(l);
-        };
+            self.div(l)
+        }
     }
     pub fn div(self: Self, dr: f32) -> Self {
         let pval: [f32; 3] = self.val;
-        return Self::new([pval[0] / dr, pval[1] / dr, pval[2] / dr]);
+        Self::new([pval[0] / dr, pval[1] / dr, pval[2] / dr])
     }
     pub fn mul(self: Self, mr: f32) -> Self {
         let pval: [f32; 3] = self.val;
-        return Self::new([pval[0] * mr, pval[1] * mr, pval[2] * mr]);
+        Self::new([pval[0] * mr, pval[1] * mr, pval[2] * mr])
     }
     pub fn add(self: Self, ad: f32) -> Self {
         let pval: [f32; 3] = self.val;
-        return Self::new([pval[0] + ad, pval[1] + ad, pval[2] + ad]);
+        Self::new([pval[0] + ad, pval[1] + ad, pval[2] + ad])
     }
     pub fn sub(self: Self, sb: f32) -> Self {
         let pval: [f32; 3] = self.val;
-        return Self::new([pval[0] - sb, pval[1] - sb, pval[2] - sb]);
+        Self::new([pval[0] - sb, pval[1] - sb, pval[2] - sb])
     }
     pub fn xyz_add(self: Self, other: Self) -> Self {
         let pval: [f32; 3] = self.val;
         let sval: [f32; 3] = other.val;
-        return Self::new([pval[0] + sval[0], pval[1] + sval[1], pval[2] + sval[2]]);
+        Self::new([pval[0] + sval[0], pval[1] + sval[1], pval[2] + sval[2]])
     }
     pub fn xyz_sub(self: Self, other: Self) -> Self {
         let pval: [f32; 3] = self.val;
         let sval: [f32; 3] = other.val;
-        return Self::new([pval[0] - sval[0], pval[1] - sval[1], pval[2] - sval[2]]);
+        Self::new([pval[0] - sval[0], pval[1] - sval[1], pval[2] - sval[2]])
     }
     pub fn xyz_mul(self: Self, other: Self) -> Self {
         let pval: [f32; 3] = self.val;
         let sval: [f32; 3] = other.val;
-        return Self::new([pval[0] * sval[0], pval[1] * sval[0], pval[2] * sval[2]]);
+        Self::new([pval[0] * sval[0], pval[1] * sval[0], pval[2] * sval[2]])
     }
     pub fn reflect(mut self: Self, n: Self) -> Self {
         let pval: [f32; 3] = self.val;
         let sval: [f32; 3] = n.val;
-        return Xyz::new([
+        Xyz::new([
             pval[0] - sval[0] * 2.0 * self.dot(n),
             pval[1] - sval[1] * 2.0 * self.dot(n),
             pval[2] - sval[2] * 2.0 * self.dot(n),
-        ]);
+        ])
     }
     pub fn dot(self: Self, other: Self) -> f32 {
         let pval: [f32; 3] = self.val;
         let sval: [f32; 3] = other.val;
-        return pval[0] * sval[0] + pval[1] * sval[1] + pval[2] * sval[2];
+        pval[0] * sval[0] + pval[1] * sval[1] + pval[2] * sval[2]
     }
     pub fn cross(self: Self, other: Self) -> Self {
         let pval: [f32; 3] = self.val;
         let sval: [f32; 3] = other.val;
-        return Xyz::new([
+        Xyz::new([
             pval[1] * sval[2] - pval[2] * sval[1],
             pval[2] * sval[0] - pval[0] * sval[2],
             pval[0] * sval[1] - pval[1] * sval[0],
-        ]);
+        ])
     }
 }
 
 impl PartialEq for Xyz {
     fn eq(self: &Self, eqself: &Self) -> bool {
-        return self.val == eqself.val;
+        self.val == eqself.val
     }
 }
 
@@ -285,58 +283,54 @@ pub trait Basic: Sized {
 
 impl Basic for u8 {
     fn to_u8(val: Self) -> u8 {
-        return val;
+        val
     }
     fn to_i32(val: Self) -> i32 {
-        return val as i32;
+        val as i32
     }
     fn to_f32(val: Self) -> f32 {
-        return val as f32;
+        val as f32
     }
 }
 
 impl Basic for i32 {
     fn to_u8(val: Self) -> u8 {
-        return if val > 255 {
+        if val > 255 {
             255
+        } else if val < 0 {
+            0
         } else {
-            if val < 0 {
-                0
-            } else {
-                val as u8
-            }
-        };
+            val as u8
+        }
     }
     fn to_i32(val: Self) -> i32 {
-        return val;
+        val
     }
     fn to_f32(val: Self) -> f32 {
-        return val as f32;
+        val as f32
     }
 }
 
 impl Basic for f32 {
     fn to_u8(val: Self) -> u8 {
-        return if val > 255.0 {
+        if val > 255.0 {
             255
+        } else if val < 0.0 {
+            0
         } else {
-            if val < 0.0 {
-                0
-            } else {
-                val as u8
-            }
-        };
+            val as u8
+        }
     }
     fn to_i32(val: Self) -> i32 {
-        return val as i32;
+        val as i32
     }
     fn to_f32(val: Self) -> f32 {
-        return val;
+        val
     }
 }
 
 pub fn i32_add<T: Basic, Y: Basic>(one: T, two: Y) -> i32 {
-    return T::to_i32(one) + Y::to_i32(two);
+    T::to_i32(one) + Y::to_i32(two)
 }
 
 pub fn i32_sub<T: Basic, Y: Basic>(one: T, two: Y) -> i32 {
@@ -355,12 +349,10 @@ pub fn u8_add<T: Basic, Y: Basic>(one: T, two: Y) -> u8 {
     let add: i32 = T::to_i32(one) + Y::to_i32(two);
     return if add > 255 {
         255
+    } else if add < 0 {
+        0
     } else {
-        if add < 0 {
-            0
-        } else {
-            add as u8
-        }
+        add as u8
     };
 }
 
@@ -368,12 +360,10 @@ pub fn u8_sub<T: Basic, Y: Basic>(one: T, two: Y) -> u8 {
     let sub: i32 = T::to_i32(one) - Y::to_i32(two);
     return if sub > 255 {
         255
+    } else if sub < 0 {
+        0
     } else {
-        if sub < 0 {
-            0
-        } else {
-            sub as u8
-        }
+        sub as u8
     };
 }
 
@@ -381,12 +371,10 @@ pub fn u8_mul<T: Basic, Y: Basic>(one: T, two: Y) -> u8 {
     let mul: f32 = T::to_f32(one) * Y::to_f32(two);
     return if mul > 255.0 {
         255
+    } else if mul < 0.0 {
+        0
     } else {
-        if mul < 0.0 {
-            0
-        } else {
-            mul as u8
-        }
+        mul as u8
     };
 }
 
@@ -394,12 +382,10 @@ pub fn u8_div<T: Basic, Y: Basic>(one: T, two: Y) -> u8 {
     let div: f32 = T::to_f32(one) / Y::to_f32(two);
     if div > 255.0 {
         255
+    } else if div < 0.0 {
+        0
     } else {
-        if div < 0.0 {
-            0
-        } else {
-            div as u8
-        }
+        div as u8
     }
 }
 

@@ -1,4 +1,4 @@
-pub use crate::types_n_convs::*;
+use crate::types_n_convs::*;
 pub use image::{DynamicImage, ImageBuffer, Rgb, RgbImage};
 pub use std::fs::File;
 pub use std::io::Read;
@@ -68,30 +68,24 @@ fn closest_color(colors_from: Vec<[i32; 3]>, color_to: [i32; 3]) -> Rgb<u8> {
     Rgb([
         if res[0] < 0 {
             0
+        } else if res[0] > 255 {
+            255
         } else {
-            if res[0] > 255 {
-                255
-            } else {
-                res[0] as u8
-            }
+            res[0] as u8
         },
         if res[1] < 0 {
             0
+        } else if res[1] > 255 {
+            255
         } else {
-            if res[1] > 255 {
-                255
-            } else {
-                res[1] as u8
-            }
+            res[1] as u8
         },
         if res[2] < 0 {
             0
+        } else if res[2] > 255 {
+            255
         } else {
-            if res[2] > 255 {
-                255
-            } else {
-                res[2] as u8
-            }
+            res[2] as u8
         },
     ])
 }
@@ -131,9 +125,8 @@ pub fn ord_bayer_dithering(
     let mut nimg: ImageBuffer<Rgb<u8>, Vec<u8>> =
         RgbImage::new(x / pixel_size + 1, y / pixel_size + 1);
     let mut ic = 0;
-    let mut jc = 0;
     for i in (0..y).step_by(pixel_size as usize) {
-        jc = 0;
+        let mut jc = 0;
         for j in (0..x).step_by(pixel_size as usize) {
             let val: f32 =
                 mat[(ic as f32 % 8.0) as usize][(jc as f32 % 8.0) as usize] as f32 / 64.0;
@@ -164,13 +157,12 @@ pub fn twod_errprop_dithering(
         RgbImage::new(x / pixel_size + 1, y / pixel_size + 1);
     let mut ic = 0;
     let mut jc;
-    let mut err: [i32; 3] = [0; 3];
     let mut err_line: Vec<[i32; 3]> = vec![[0; 3]; (x / pixel_size) as usize];
     let mut curr_pixel: Rgb<u8>;
     let mut upper_pixel: Rgb<u8>;
     let mut color: Rgb<u8>;
     for i in (1..y).step_by(pixel_size as usize) {
-        err = [0; 3];
+        let mut err = [0; 3];
         jc = 0;
         for j in (0..x).step_by(pixel_size as usize) {
             curr_pixel = *img.get_pixel(j, i);
@@ -301,9 +293,8 @@ pub fn downscale(img: ImageBuffer<Rgb<u8>, Vec<u8>>, k: u32) -> ImageBuffer<Rgb<
     let (x, y) = img.dimensions();
     let mut nimg: ImageBuffer<Rgb<u8>, Vec<u8>> = RgbImage::new(x / k + 1, y / k + 1);
     let mut ic: u32 = 0;
-    let mut jc: u32 = 0;
     for i in (0..y).step_by(k as usize) {
-        jc = 0;
+        let mut jc: u32 = 0;
         for j in (0..x).step_by(k as usize) {
             nimg.put_pixel(jc, ic, *img.get_pixel(j, i));
             jc += 1;
@@ -315,7 +306,6 @@ pub fn downscale(img: ImageBuffer<Rgb<u8>, Vec<u8>>, k: u32) -> ImageBuffer<Rgb<
 
 pub fn pinkize(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>) {
     let (x, y) = img.dimensions();
-    let mut output_img: ImageBuffer<Rgb<u8>, Vec<u8>> = RgbImage::new(x, y);
     for i in 0..y {
         for j in 0..x {
             let pixel: Rgb<u8> = *img.get_pixel(j, i);
@@ -359,33 +349,11 @@ pub fn colorize(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, color: Rgb<u8>) {
 
 pub fn add(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, color: Rgb<u8>) {
     let (x, y) = img.dimensions();
-    let mut output_img: ImageBuffer<Rgb<u8>, Vec<u8>> = RgbImage::new(x, y);
     for i in 0..y {
         for j in 0..x {
             img.put_pixel(j, i, rgb_add(*img.get_pixel(j, i), color));
         }
     }
-}
-
-pub fn to_cpp_arr(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, s: i32, f: bool) {
-    let (x, y) = img.dimensions();
-    let step: f32 = x as f32 / s as f32;
-    print!("{{");
-    for i in 0..s {
-        for j in 0..s {
-            let pixel: [u8; 3] =
-                (*img.get_pixel((j as f32 * step) as u32, (i as f32 * step) as u32)).0;
-            if f {
-                print!("{:?},", pixel)
-            } else {
-                print!(
-                    "{:?},",
-                    (pixel[0] as i32) * 256 * 256 + (pixel[1] as i32) * 256 + pixel[2] as i32
-                );
-            }
-        }
-    }
-    print!("}}");
 }
 
 pub fn to_mc_pic(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, width: u32, frame_color: Rgb<u8>) {
@@ -495,7 +463,7 @@ pub fn raytrace(
     objects: Vec<Object>,
     res: [u32; 2],
     ro: Xyz,
-    mut rs: u8,
+    rs: u8,
     bgd_col: Rgb<u8>,
 ) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let mut img: ImageBuffer<Rgb<u8>, Vec<u8>> = RgbImage::new(res[1], res[0]);
@@ -510,7 +478,6 @@ pub fn raytrace(
     let mut intersect: Intersection = Intersection::null();
     let mut pre_intersect: Intersection = Intersection::null();
     let mut rfty: f32;
-    let objs_ns: Vec<Object> = vec![];
     let mut buff_intersect: Intersection;
     for y in 0..res[0] {
         println!("{}", (y as f32 / res[0] as f32 * 100.0) as u32);
@@ -524,15 +491,15 @@ pub fn raytrace(
             let mut any: bool = false;
             rfty = 1.0;
             let mut refl_obj: Object = Object::null();
-            for r in 0..rs {
+            for _ in 0..rs {
                 intersect.t = 99999.0;
                 pre_intersect.t = 99999.0;
                 for i in objects.clone() {
-                    buff_intersect = i.check(lro, lrd);
-                    if buff_intersect.t != -1.0 {
-                        pre_intersect = buff_intersect;
-                    }
-                    if (pre_intersect.t < intersect.t) && (pre_intersect.hit_obj != refl_obj) {
+                    pre_intersect = i.check(lro, lrd);
+                    if pre_intersect.t != -1.0
+                        && pre_intersect.t < intersect.t
+                        && (pre_intersect.hit_obj != refl_obj)
+                    {
                         intersect = pre_intersect;
                     }
                 }

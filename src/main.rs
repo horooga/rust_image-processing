@@ -1,22 +1,40 @@
-mod image_procs_n_raytrace;
-use image_procs_n_raytrace::*;
+mod image_procs;
+mod types_n_convs;
+mod ui;
+
+use druid::piet::ImageBuf;
+use druid::{AppLauncher, Data, Lens, LocalizedString, WindowDesc};
+use std::sync::{Arc, Mutex};
+use ui::{ColorParams, DitheringParams, ProcessingOption};
+
+#[derive(Clone, Data, Lens)]
+pub struct AppState {
+    pub img: Option<ImageBuf>,
+    pub undos: Arc<Mutex<Vec<ImageBuf>>>,
+
+    pub selected_option: ProcessingOption,
+
+    pub dithering_params: DitheringParams,
+    pub color_params: ColorParams,
+}
 
 fn main() {
-    //let img: ImageBuffer<Rgb<u8>, Vec<u8>> = raytrace(vec![], [256, 256], Xyz::new([0.0, 0.0, 0.0]), 0, Rgb([0, 0, 0]));
+    let main_window = WindowDesc::new(ui::build_ui())
+        .title(LocalizedString::new("Image Processing"))
+        .window_size((800.0, 500.0));
 
-    let mut img: ImageBuffer<Rgb<u8>, Vec<u8>> = open_img("image.jpg").unwrap();
-    img = downscale(img, 8);
-    let mut rimg: &mut ImageBuffer<Rgb<u8>, Vec<u8>> = &mut img;
+    let initial_state = AppState {
+        img: None,
+        undos: Arc::new(Mutex::new(Vec::new())),
+        selected_option: ProcessingOption::Dithering,
+        dithering_params: DitheringParams { threshold: 0.5 },
+        color_params: ColorParams {
+            brightness: 1.0,
+            contrast: 1.0,
+        },
+    };
 
-    to_n_val_channels(rimg, 6);
-    let colors: Vec<[i32; 3]> = to_colors(rimg);
-    //print!("{:?}", colors);
-
-    img = ord_bayer_dithering(img, colors, BAYER_8X8, 2, 1.0, 0.0);
-
-    rimg = &mut img;
-    bright(rimg, 1.3);
-    to_mc_pic(rimg, 3, Rgb([60, 20, 20]));
-
-    let _ = save_img(img, "res.jpg");
+    AppLauncher::with_window(main_window)
+        .launch(initial_state)
+        .expect("Failed to launch");
 }
