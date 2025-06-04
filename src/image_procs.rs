@@ -3,6 +3,7 @@ pub use image::{DynamicImage, ImageBuffer, Rgb, RgbImage};
 pub use std::fs::File;
 pub use std::io::Read;
 use std::io::{Error, Write};
+use std::path::Path;
 pub use std::str;
 pub use std::{cmp, vec};
 pub use Vec;
@@ -18,44 +19,18 @@ pub const BAYER_8X8: [[u8; 8]; 8] = [
     [63, 31, 55, 23, 61, 29, 53, 21],
 ];
 
-fn get_n_index(v: String) -> usize {
-    let mut c: i32 = 0;
-    for i in 0..v.len() {
-        if v.chars().nth(i).unwrap() == '/' {
-            c += 1;
-        } else if c == 2 {
-            return v[i..].parse().unwrap();
-        }
-    }
-    return 0;
-}
-
-fn get_v_indexes(line: Vec<String>) -> Vec<usize> {
-    let mut output: Vec<usize> = vec![];
-    for i in 1..line.len() {
-        let v: String = line[i].clone();
-        for j in 0..v.len() {
-            if v.chars().nth(j).unwrap() == '/' {
-                output.push(v[..j].parse().unwrap());
-                break;
-            }
-        }
-    }
-    return output;
-}
-
-fn rgb_dist(one: [i32; 3], two: [i32; 3]) -> u16 {
+fn rgb_dist(one: [u8; 3], two: [u8; 3]) -> u32 {
     ((i32_sub(one[0], two[0]).pow(2)
         + i32_sub(one[1], two[1]).pow(2)
         + i32_sub(one[2], two[2]).pow(2)) as f32)
-        .sqrt() as u16
+        .sqrt() as u32
 }
 
-fn closest_color(colors_from: Vec<[i32; 3]>, color_to: [i32; 3]) -> Rgb<u8> {
-    let mut mindist: u16 = 65535;
-    let mut dist: u16;
+fn closest_color(colors_from: Vec<[u8; 3]>, color_to: [u8; 3]) -> Rgb<u8> {
+    let mut mindist: u32 = 65535;
+    let mut dist: u32;
     let mut color_index: usize = 0;
-    let mut color: [i32; 3];
+    let mut color: [u8; 3];
     for ci in 0..colors_from.len() {
         color = colors_from[ci];
         dist = rgb_dist(color, color_to);
@@ -64,7 +39,7 @@ fn closest_color(colors_from: Vec<[i32; 3]>, color_to: [i32; 3]) -> Rgb<u8> {
             color_index = ci;
         }
     }
-    let res: [i32; 3] = colors_from[color_index];
+    let res: [u8; 3] = colors_from[color_index];
     Rgb([
         if res[0] < 0 {
             0
@@ -115,7 +90,7 @@ fn measure_equal(one: Rgb<u8>, two: Rgb<u8>, measure: i32) -> bool {
 
 pub fn ord_bayer_dithering(
     img: ImageBuffer<Rgb<u8>, Vec<u8>>,
-    pal: Vec<[i32; 3]>,
+    pal: Vec<[u8; 3]>,
     mat: [[u8; 8]; 8],
     pixel_size: u32,
     d: f32,
@@ -371,199 +346,6 @@ pub fn to_mc_pic(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, width: u32, frame_colo
             img.put_pixel(j, y - 1 - w, frame_color);
         }
     }
-}
-
-pub fn obj_import(name: &str, pos: [f32; 3], rfty: f32) -> std::io::Result<Vec<Object>> {
-    let mut output: Vec<Object> = vec![];
-    let mut f = File::open(name)?;
-    let mut data: Vec<u8> = vec![];
-    f.read_to_end(&mut data)?;
-    let mut curr: Vec<u8> = vec![];
-    let mut lines: Vec<String> = vec![];
-    let mut ns: Vec<[f32; 3]> = vec![];
-    let mut vs: Vec<[f32; 3]> = vec![];
-    let mut curr_color: Rgb<u8> = Rgb([0, 0, 0]);
-    let mut light: bool = false;
-    for i in data.into_iter() {
-        if i == 10 {
-            lines.push(String::from_utf8(curr).unwrap());
-            curr = vec![];
-        } else if i != 13 {
-            curr.push(i)
-        }
-    }
-    lines.push(String::from_utf8(curr).unwrap());
-    for l in lines.clone().into_iter() {
-        let line: Vec<String> = l.split(" ").map(|s| s.to_string()).collect();
-        match line[0].as_str() {
-            "color" => {
-                curr_color = Rgb([
-                    line[1].parse::<u8>().unwrap(),
-                    line[2].parse::<u8>().unwrap(),
-                    line[3].parse::<u8>().unwrap(),
-                ]);
-                light = false;
-            }
-            "light" => {
-                light = true;
-            }
-            "v" => {
-                vs.push([
-                    -line[3].parse::<f32>().unwrap() + pos[0],
-                    line[1].parse::<f32>().unwrap() + pos[1],
-                    line[2].parse::<f32>().unwrap() + pos[2],
-                ]);
-            }
-            "vn" => ns.push([
-                -line[3].parse::<f32>().unwrap(),
-                line[1].parse::<f32>().unwrap(),
-                line[2].parse::<f32>().unwrap(),
-            ]),
-            "f" => {
-                if line.len() == 4 {
-                    let cvs: Vec<usize> = get_v_indexes(line.clone());
-                    output.push(Object::new_triangle(
-                        Xyz::to_xyz(ns[get_n_index(line[1].clone()) - 1]),
-                        curr_color,
-                        Xyz::to_xyz(vs[cvs[0] - 1]),
-                        Xyz::to_xyz(vs[cvs[1] - 1]),
-                        Xyz::to_xyz(vs[cvs[2] - 1]),
-                        rfty * if light { 50.0 } else { 1.0 },
-                        light,
-                    ))
-                } else if line.len() == 5 {
-                    let cvs: Vec<usize> = get_v_indexes(line.clone());
-                    output.push(Object::new_triangle(
-                        Xyz::to_xyz(ns[get_n_index(line[1].clone()) - 1]),
-                        curr_color,
-                        Xyz::to_xyz(vs[cvs[0] - 1]),
-                        Xyz::to_xyz(vs[cvs[1] - 1]),
-                        Xyz::to_xyz(vs[cvs[2] - 1]),
-                        rfty * if light { 50.0 } else { 1.0 },
-                        light,
-                    ));
-                    output.push(Object::new_triangle(
-                        Xyz::to_xyz(ns[get_n_index(line[1].clone()) - 1]),
-                        curr_color,
-                        Xyz::to_xyz(vs[cvs[0] - 1]),
-                        Xyz::to_xyz(vs[cvs[2] - 1]),
-                        Xyz::to_xyz(vs[cvs[3] - 1]),
-                        rfty * if light { 50.0 } else { 1.0 },
-                        light,
-                    ));
-                }
-            }
-            _ => (),
-        }
-    }
-    return Ok(output);
-}
-
-pub fn raytrace(
-    objects: Vec<Object>,
-    res: [u32; 2],
-    ro: Xyz,
-    rs: u8,
-    bgd_col: Rgb<u8>,
-) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let mut img: ImageBuffer<Rgb<u8>, Vec<u8>> = RgbImage::new(res[1], res[0]);
-    let mut lights: Vec<Object> = vec![];
-    for oi in 0..objects.len() {
-        if objects[oi].light && lights.len() < 100 {
-            lights.push(objects[oi]);
-        }
-    }
-    let r_y: f32 = res[0] as f32;
-    let r_x: f32 = res[1] as f32;
-    let mut intersect: Intersection = Intersection::null();
-    let mut pre_intersect: Intersection = Intersection::null();
-    let mut rfty: f32;
-    let mut buff_intersect: Intersection;
-    for y in 0..res[0] {
-        println!("{}", (y as f32 / res[0] as f32 * 100.0) as u32);
-        let y_d: f32 = -(y as f32 / r_y * 2.0 - 1.0);
-        for x in 0..res[1] {
-            let x_d: f32 = x as f32 / r_x * 2.0 - 1.0;
-            let mut color: Rgb<u8> = Rgb([0, 0, 0]);
-            let rd: Xyz = Xyz::new([1.0, x_d, y_d]).norm();
-            let mut lro: Xyz = ro;
-            let mut lrd: Xyz = rd;
-            let mut any: bool = false;
-            rfty = 1.0;
-            let mut refl_obj: Object = Object::null();
-            for _ in 0..rs {
-                intersect.t = 99999.0;
-                pre_intersect.t = 99999.0;
-                for i in objects.clone() {
-                    pre_intersect = i.check(lro, lrd);
-                    if pre_intersect.t != -1.0
-                        && pre_intersect.t < intersect.t
-                        && (pre_intersect.hit_obj != refl_obj)
-                    {
-                        intersect = pre_intersect;
-                    }
-                }
-                if intersect.t != 99999.0 {
-                    refl_obj = intersect.hit_obj;
-                    let mut shadow: f32 = 1.0;
-                    any = true;
-                    if !intersect.hit_obj.light {
-                        lro = intersect.hit;
-                        lrd = lrd.reflect(intersect.n);
-                        let mut light_c: Xyz = Xyz::new([1.0, 1.0, 1.0]);
-                        for li in 0..lights.len() {
-                            let light: Object = lights[li];
-                            light_c = light_c
-                                .mul(
-                                    1.0 - (intersect.n.dot((lro.xyz_sub(light.b)).norm()) + 1.0)
-                                        / 2.0,
-                                )
-                                .xyz_mul(Xyz::new([
-                                    light.col[0] as f32 / 255.0,
-                                    light.col[1] as f32 / 255.0,
-                                    light.col[2] as f32 / 255.0,
-                                ]));
-                            let mut light_intersects: Vec<Intersection> = vec![];
-                            for oi in 0..objects.len() {
-                                let object: Object = objects[oi];
-                                if !object.light && object != intersect.hit_obj {
-                                    buff_intersect =
-                                        object.check(lro, light.pos.xyz_sub(lro).norm());
-                                    if buff_intersect.t != -1.0
-                                        && intersect.t < light.pos.xyz_sub(lro).length()
-                                    {
-                                        light_intersects.push(buff_intersect);
-                                    }
-                                }
-                            }
-                            if light_intersects.len() != 0 {
-                                shadow = 0.5;
-                            }
-                        }
-                        color = rgb_mul(
-                            rgb_add(
-                                color,
-                                rgb_xyz_mul(rgb_mul(intersect.hit_obj.col, rfty), light_c),
-                            ),
-                            shadow,
-                        );
-                        rfty = intersect.hit_obj.rfty;
-                    } else {
-                        color = rgb_add(color, intersect.hit_obj.col);
-                        break;
-                    }
-                } else {
-                    break;
-                }
-            }
-            if !any {
-                img.put_pixel(x, y, bgd_col)
-            } else {
-                img.put_pixel(x, y, color);
-            }
-        }
-    }
-    return img;
 }
 
 pub fn open_img(path: &str) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, image::ImageError> {

@@ -1,19 +1,23 @@
 use druid::{
     commands,
+    lens::LensExt,
     piet::ImageFormat,
     widget::{
-        Align, Button, Container, CrossAxisAlignment, Flex, Image, Label, MainAxisAlignment,
-        RadioGroup, Slider, ViewSwitcher,
+        Align, Button, Container, Controller, CrossAxisAlignment, Flex, Image, Label,
+        MainAxisAlignment, RadioGroup, Slider, TextBox, ViewSwitcher,
     },
     Color, Data, FileDialogOptions, FileSpec, ImageBuf, Lens, UnitPoint, Widget, WidgetExt,
 };
-use image::{ImageReader, RgbImage};
+use image::{ImageBuffer, ImageReader, Rgb};
 use std::{
     path::Path,
     sync::{Arc, Mutex},
 };
 
-use crate::AppState;
+use crate::{
+    image_procs::{ord_bayer_dithering, str_to_pal, BAYER_8X8},
+    AppState,
+};
 
 static MAX_UNDOS_LEN: u8 = 3;
 
@@ -25,7 +29,8 @@ pub enum ProcessingOption {
 
 #[derive(Clone, Data, Lens)]
 pub struct DitheringParams {
-    pub threshold: f64,
+    pub palette: String,
+    pub pixel_size: f64,
 }
 
 #[derive(Clone, Data, Lens)]
@@ -35,8 +40,18 @@ pub struct ColorParams {
 }
 
 struct FileOpenController;
+struct DitheringOrderedController;
 
-impl<W: druid::Widget<AppState>> druid::widget::Controller<AppState, W> for FileOpenController {
+impl PartialEq for DitheringParams {
+    fn eq(&self, other: &Self) -> bool {
+        (self.palette == other.palette) && (self.pixel_size == other.pixel_size)
+    }
+    fn ne(&self, other: &Self) -> bool {
+        (self.palette != other.palette) && (self.pixel_size != other.pixel_size)
+    }
+}
+
+impl<W: druid::Widget<AppState>> Controller<AppState, W> for FileOpenController {
     fn event(
         &mut self,
         child: &mut W,
@@ -49,7 +64,7 @@ impl<W: druid::Widget<AppState>> druid::widget::Controller<AppState, W> for File
             if let Some(file_info) = cmd.get(commands::OPEN_FILE) {
                 if let Some(img_buf) = image_from_path(file_info.path()) {
                     if let Some(curr_img) = &data.img {
-                        update_undos(&mut data.undos, curr_img.clone());
+                        update_undos(&mut data.undos, curr_img;
                     }
                     data.img = Some(img_buf.clone());
                     ctx.request_update();
@@ -62,6 +77,32 @@ impl<W: druid::Widget<AppState>> druid::widget::Controller<AppState, W> for File
     }
 }
 
+impl<W: Widget<AppState>> Controller<AppState, W> for DitheringOrderedController {
+    fn update(
+        &mut self,
+        child: &mut W,
+        ctx: &mut druid::UpdateCtx,
+        old_data: &AppState,
+        data: &AppState,
+        env: &druid::Env,
+    ) {
+        if old_data.dithering_params != data.dithering_params && data.img.is_some() {
+            let params = data.dithering_params;
+            let img = data.img.unwrap().lock().unwrap();
+            if let Some(pal) = str_to_pal(params.palette.as_str()) {
+                data.img = Some(Arc::new(Mutex::new(ord_bayer_dithering(
+                    img.clone(),
+                    pal,
+                    BAYER_8X8,
+                    params.pixel_size as u32,
+                    1.0,
+                    1.0,
+                ))));
+            }
+        }
+        child.update(ctx, old_data, data, env);
+    }
+}
 fn update_undos(undos: &mut Arc<Mutex<Vec<ImageBuf>>>, img: ImageBuf) {
     let mut images_lock = undos.lock().unwrap();
     images_lock.push(img);
@@ -70,18 +111,8 @@ fn update_undos(undos: &mut Arc<Mutex<Vec<ImageBuf>>>, img: ImageBuf) {
     }
 }
 
-fn image_from_path<P: AsRef<Path>>(path: P) -> Option<ImageBuf> {
-    let img = ImageReader::open(path).ok()?.decode().ok()?;
-    let rgb_img: RgbImage = img.to_rgb8();
-    let (width, height) = rgb_img.dimensions();
-    let raw_bytes = rgb_img.into_raw();
-
-    Some(ImageBuf::from_raw(
-        raw_bytes,
-        ImageFormat::Rgb,
-        width as usize,
-        height as usize,
-    ))
+fn image_from_path<P: AsRef<Path>>(path: P) -> Option<ImageBuffer<Rgb<u8>, Vec<u8>>> {
+    Some(ImageReader::open(path).ok()?.decode().ok()?.into_rgb8())
 }
 
 pub fn build_ui() -> impl Widget<AppState> {
@@ -104,7 +135,7 @@ pub fn build_ui() -> impl Widget<AppState> {
     let params_view = ViewSwitcher::new(
         |data: &AppState, _env| data.selected_option.clone(),
         |selected, _data, _env| match selected {
-            ProcessingOption::Dithering => dithering_params_ui()
+            ProcessingOption::Dithering => dithering_ordered_params_ui()
                 .lens(AppState::dithering_params)
                 .boxed(),
             ProcessingOption::Color => color_params_ui().lens(AppState::color_params).boxed(),
@@ -115,7 +146,16 @@ pub fn build_ui() -> impl Widget<AppState> {
         |data: &AppState, _env| data.img.clone(),
         |image_opt, _data, _env| {
             if let Some(img) = image_opt {
-                Image::new(img.clone()).fix_size(350.0, 350.0).boxed()
+                let (width, height) = img.dimensions();
+                let raw_bytes = img.into_raw();
+                Image::new(ImageBuf::from_raw(
+                    raw_bytes,
+                    ImageFormat::Rgb,
+                    width as usize,
+                    height as usize,
+                ))
+                .fix_size(350.0, 350.0)
+                .boxed()
             } else {
                 Label::new("No image loaded").boxed()
             }
@@ -148,21 +188,37 @@ pub fn build_ui() -> impl Widget<AppState> {
             .main_axis_alignment(MainAxisAlignment::Center)
             .with_flex_child(left_col, 1.0)
             .with_flex_child(right_col, 1.0)
-            .controller(FileOpenController),
+            .controller(FileOpenController)
+            .controller(DitheringOrderedController),
     )
     .background(Color::BLACK)
     .padding((30., 200.))
 }
 
-fn dithering_params_ui() -> impl Widget<DitheringParams> {
+fn dithering_ordered_params_ui() -> impl Widget<DitheringParams> {
     Flex::column()
         .with_child(Label::new("Dithering Parameters"))
         .with_spacer(5.0)
-        .with_child(Label::new("Threshold:").padding((0., 0., 0., 5.)))
+        .with_child(Label::new("Palette").padding((0., 0., 0., 5.)))
+        .with_child(
+            TextBox::new()
+                .with_placeholder("Enter your name")
+                .lens(DitheringParams::palette)
+                .padding((0., 0., 0., 5.)),
+        )
+        .with_child(Label::new("Pixel size").padding((0., 0., 0., 5.)))
         .with_child(
             Slider::new()
-                .with_range(0.0, 1.0)
-                .lens(DitheringParams::threshold),
+                .with_range(0.0, 20.0)
+                .with_step(1.0)
+                .lens(DitheringParams::pixel_size),
+        )
+        .with_child(Label::new("").padding((0., 0., 0., 5.)))
+        .with_child(
+            Slider::new()
+                .with_range(0.0, 20.0)
+                .with_step(1.0)
+                .lens(DitheringParams::pixel_size),
         )
 }
 

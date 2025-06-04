@@ -4,12 +4,13 @@ mod ui;
 
 use druid::piet::ImageBuf;
 use druid::{AppLauncher, Data, Lens, LocalizedString, WindowDesc};
+use image::{ImageBuffer, Rgb};
 use std::sync::{Arc, Mutex};
 use ui::{ColorParams, DitheringParams, ProcessingOption};
 
 #[derive(Clone, Data, Lens)]
 pub struct AppState {
-    pub img: Option<ImageBuf>,
+    pub img: Option<Arc<Mutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>>,
     pub undos: Arc<Mutex<Vec<ImageBuf>>>,
 
     pub selected_option: ProcessingOption,
@@ -27,7 +28,10 @@ fn main() {
         img: None,
         undos: Arc::new(Mutex::new(Vec::new())),
         selected_option: ProcessingOption::Dithering,
-        dithering_params: DitheringParams { threshold: 0.5 },
+        dithering_params: DitheringParams {
+            palette: "".to_string(),
+            pixel_size: 0.0,
+        },
         color_params: ColorParams {
             brightness: 1.0,
             contrast: 1.0,
